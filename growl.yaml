@@ -1,0 +1,13 @@
+# EXAMPLE GROWL.YAML.
+# yaml rules btw.
+# declare your commands in this file.
+commands:
+ # add build and run commands written here will overwrite default ones :).
+  - name: build
+    description: "echo test"
+    command: echo test
+  - name: hello
+    description: "prints hello, World!" # this description is unused, this is only for documentation and shown only in command list.
+    command: echo "hello world, %1!" # add args with %1, %2, etc.
+    shell: cmd # optional, default is cmd in Windows, bash in Linux. Set this to the shell you want to use.
+    shellargs: /C # optional, default is /C in Windows, none in Linux. Set this to the arg needed to make the shell execute your command.

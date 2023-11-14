@@ -36,7 +36,8 @@ func IndexFunc(s []GrowlCommand, f func(GrowlCommand) bool) int {
 
 func runGoCmd(cmdname string, args []string, cfg GrowlYaml) error {
 	if len(cfg.Commands) > 0 {
-		if slices.Contains(cfg.Commands, GrowlCommand{Name: cmdname}) {
+		if slices.ContainsFunc(cfg.Commands, func(gc GrowlCommand) bool { return gc.Name == cmdname }) {
+			args = append([]string{cmdname}, args...)
 			runCommand(args, cfg)
 			return nil
 		}
@@ -51,16 +52,20 @@ func runGoCmd(cmdname string, args []string, cfg GrowlYaml) error {
 }
 
 func printErr(msg ...string) {
-	color.New(color.FgRed).Println(msg)
+	color.New(color.FgRed).Println("ERROR: ", strings.Join(msg, " "))
 	os.Exit(1)
 }
 
 func printList(commands []GrowlCommand) {
-	color.New(color.FgGreen).Println("Commands:")
+	color.New(color.FgGreen).Println("Commands (growl.yaml):")
+	blue := color.New(color.FgBlue)
 	for _, c := range commands {
-		fmt.Println("-", c.Name)
-		fmt.Println("   ", c.Description)
-		fmt.Println("   ", c.Command)
+		blue.Print("- ")
+		println(c.Name)
+		blue.Print("    description ")
+		fmt.Println(c.Description)
+		blue.Print("    command ")
+		fmt.Println(strings.Replace(c.Command, "%", blue.Sprint("%"), 1))
 	}
 }
 
@@ -73,24 +78,30 @@ func runCommand(args []string, cfg GrowlYaml) {
 
 	cfgCmd := cfg.Commands[idx]
 
-	for i := range args[:1] {
-		cfgCmd.Command = strings.ReplaceAll(cfgCmd.Command, "%"+fmt.Sprint(i+1), args[0])
+	if len(args) > 1 {
+		for i := range args[:1] {
+			cfgCmd.Command = strings.ReplaceAll(cfgCmd.Command, "%"+fmt.Sprint(i+1), args[i+1])
+		}
 	}
 
-	var shell string
-
-	switch runtime.GOOS {
-	case "windows":
-		shell = "cmd"
-	case "linux":
-		shell = "bash"
+	if cfgCmd.Shell == "" {
+		switch runtime.GOOS {
+		case "windows":
+			cfgCmd.Shell = "cmd"
+		case "linux", "darwin":
+			cfgCmd.Shell = "sh"
+		}
+	}
+	if cfgCmd.ShellArgs == "" {
+		switch runtime.GOOS {
+		case "windows":
+			cfgCmd.ShellArgs = "/C"
+		case "linux", "darwin":
+			cfgCmd.ShellArgs = "-c"
+		}
 	}
 
-	if cfg.Commands[idx].Shell != "" {
-		shell = cfg.Commands[idx].Shell
-	}
-
-	cmd := exec.Command(shell, cfg.Commands[idx].ShellArgs, cfg.Commands[idx].Command)
+	cmd := exec.Command(cfgCmd.Shell, cfgCmd.ShellArgs, cfgCmd.Command)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -110,7 +121,6 @@ func main() {
 		Name:                 "growl",
 		Usage:                "simple go cli tools",
 		EnableBashCompletion: true,
-		Flags:                []cli.Flag{},
 		Action: func(c *cli.Context) error {
 			if len(c.Args().Slice()) == 0 {
 				runGoCmd("run", c.Args().Slice(), cfg)
@@ -129,6 +139,17 @@ func main() {
 				Usage: "Run project (go run .)",
 				Aliases: []string{
 					"r",
+				},
+			},
+			{
+				Name: "list",
+				Action: func(c *cli.Context) error {
+					printList(cfg.Commands)
+					return nil
+				},
+				Usage: "List commands from growl.yaml",
+				Aliases: []string{
+					"l",
 				},
 			},
 			{

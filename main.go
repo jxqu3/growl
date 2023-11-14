@@ -50,10 +50,10 @@ func runGoCmd(cmdname string, args []string, cfg GrowlYaml) error {
 	fmt.Println("Executing: go", cmdname, ".", strings.Join(args, " "))
 	args = append([]string{cmdname, "."}, args...)
 	cmd := exec.Command("go", args...)
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
 
 func printErr(msg ...string) {
@@ -216,7 +216,7 @@ func main() {
 			},
 			{
 				Name:      "cross",
-				UsageText: "growl cross --os [os] --arch [arch] --ldflags \"[ldflags]\"\ngrowl cross -o [os] -a [arch] -ld \"[ldflags]\"\nYou can use growl cross list to list available OS and CPU architectures",
+				UsageText: "growl cross --os [os] --arch [arch] --ldflags \"[ldflags]\" [--static] [--light] [--cgo] \ngrowl cross -o [os] -a [arch] -ld \"[ldflags]\" [-s] [-l] [-c]\nYou can use growl cross list to list available OS and CPU architectures",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "os",
@@ -232,6 +232,21 @@ func main() {
 						Name:    "ldflags",
 						Aliases: []string{"ld"},
 						Value:   "",
+					},
+					&cli.BoolFlag{
+						Name:    "static",
+						Aliases: []string{"s"},
+						Value:   false,
+					},
+					&cli.BoolFlag{
+						Name:    "light",
+						Aliases: []string{"l"},
+						Value:   false,
+					},
+					&cli.BoolFlag{
+						Name:    "cgo",
+						Aliases: []string{"c"},
+						Value:   os.Getenv("CGO_ENABLED") == "1",
 					},
 				},
 				Subcommands: []*cli.Command{
@@ -260,11 +275,25 @@ func main() {
 					red.Print("- arch ")
 					os.Setenv("GOARCH", c.String("arch"))
 					fmt.Println(c.String("arch"))
+					ld := c.String("ldflags")
+					if c.Bool("static") {
+						ld += " -extldflags=-static"
+						os.Setenv("CGO_ENABLED", "1")
+					}
+					if c.Bool("light") {
+						ld += " -w -s"
+						os.Setenv("CGO_ENABLED", "1")
+					}
 					red.Print("- ldflags ")
-					fmt.Println(c.String("ldflags"))
+					fmt.Println(ld)
 					color.Green("Building...")
-					args := append(c.Args().Slice(), "--ldflags", c.String("ldflags"))
-					runGoCmd("build", args, cfg)
+					args := append([]string{"build", "-ldflags=" + ld}, c.Args().Slice()...)
+					cmd := exec.Command("go", args...)
+					cmd.Stderr = os.Stderr
+					cmd.Stdout = os.Stdout
+					if err := cmd.Run(); err != nil {
+						return err
+					}
 					return nil
 				},
 				Usage: "Build to target OS and arch. (growl cross --os=linux --arch=amd64)",

@@ -30,6 +30,12 @@ commands:
 
 - Run/build your project with `growl [b/build/r/run] [args]`
 - Cross compile with  
-`growl cross --os [os] --arch [arch] --ldflags [ldflags]`  
+```bash
+growl cross --os [os] --arch [arch] --ldflags "[ldflags]" [--static] [--light] [--cgo] 
+#or
+growl cross -o [os] -a [arch] -ld "[ldflags]" [-s] [-l] [-c] 
+```
+`--static` adds "-extldflags=-static" to ldflags and `--light` adds `-w -s`.
+
 or `growl cross -o [os] -a [arch] -ld [ldflags]`
 - Print availbable os/architectures with `growl cross list`

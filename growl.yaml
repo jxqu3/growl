@@ -1,8 +1,4 @@
-
 commands:
 - name: b
   description: build growl
-  command: growl cross -os %1
-- name: test
-  description: test growl
-  command: echo test
+  command: growl cross -os %1 -s -l

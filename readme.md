@@ -10,17 +10,24 @@ go install github.com/checkm4ted/growl
 ## usage
 First, make a growl.yaml file in your project. There's a example one in this repo.
 ```yaml
+shell: cmd /C # > optional, default is cmd /C in Windows, bash -c in Linux. Set this to the shell you want to use. (with the prefix to make it work too)
+globalenv: # optional, set global (for all commands) environment variables like this.
+  - name: TESTGLOBAL
+    value: global var test
+
+# commands:
 commands:
- # build and run commands written here will overwrite default ones so you can set your own :).
-  # - name: build
-  #   description: "echo test"
-  #   command: echo test
-  - name: hello
-    description: "prints hello, World!" # this description is unused, this is only for documentation and shown only in command list.
-    command: echo hello world, %1! # add args with %1, %2, etc.
-    #shell: cmd > optional, default is cmd in Windows, sh in Linux. Set this to the shell you want to use.
-    #shellargs: /C > optional, default is /C in Windows, -c in Linux. Set this to the arg needed to make the shell execute your command.
-    env: # optional, set environment variables here.
+  - name: b
+    description: "build the app to a given os"
+    command: growl cross -os %1 # add args with %1, %2, etc.
+    
+  - name: test
+    description: "show environment variables"
+    command: echo hello, %TESTGLOBAL% # in cmd you print env vars with %VAR%
+    extra: # optional, set extra commands (ran after the main one) for a command like this.
+      - echo hello, extra %TEST%
+      - echo this is a nicer way to run multiple commands than using "&&"
+    env: # optional, set environment variables for a command like this.
       - name: TEST
         value: test
 ```

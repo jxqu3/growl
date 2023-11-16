@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -23,11 +22,12 @@ type GrowlCommand struct {
 	Description string
 	Command     string
 	Env         []GrowlEnv
-	Shell       string
-	ShellArgs   string
+	Extra       []string
 }
 type GrowlYaml struct {
-	Commands []GrowlCommand
+	Shell     string
+	GlobalEnv []GrowlEnv
+	Commands  []GrowlCommand
 }
 
 func IndexFunc(s []GrowlCommand, f func(GrowlCommand) bool) int {
@@ -37,23 +37,6 @@ func IndexFunc(s []GrowlCommand, f func(GrowlCommand) bool) int {
 		}
 	}
 	return -1
-}
-
-func runGoCmd(cmdname string, args []string, cfg GrowlYaml) error {
-	if len(cfg.Commands) > 0 {
-		if slices.ContainsFunc(cfg.Commands, func(gc GrowlCommand) bool { return gc.Name == cmdname }) {
-			args = append([]string{cmdname}, args...)
-			runCommand(args, cfg)
-			return nil
-		}
-	}
-	fmt.Println("Executing: go", cmdname, ".", strings.Join(args, " "))
-	args = append([]string{cmdname, "."}, args...)
-	cmd := exec.Command("go", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
 }
 
 func printErr(msg ...string) {
@@ -74,11 +57,11 @@ func printList(commands []GrowlCommand) {
 	}
 }
 
-func runCommand(args []string, cfg GrowlYaml) {
+func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 	idx := IndexFunc(cfg.Commands, func(c GrowlCommand) bool { return c.Name == args[0] })
 	if idx == -1 {
 		printList(cfg.Commands)
-		printErr("Command not found!")
+		printErr(fmt.Sprintf("'%s': Command not found!", args[0]))
 	}
 
 	cfgCmd := cfg.Commands[idx]
@@ -89,43 +72,68 @@ func runCommand(args []string, cfg GrowlYaml) {
 		}
 	}
 
-	if cfgCmd.Shell == "" {
+	if cfg.Shell == "" {
 		switch runtime.GOOS {
 		case "windows":
-			cfgCmd.Shell = "cmd"
+			cfg.Shell = "cmd /C"
 		case "linux", "darwin":
-			cfgCmd.Shell = "sh"
+			cfg.Shell = "bash -c"
 		}
 	}
-	if cfgCmd.ShellArgs == "" {
+
+	slice := strings.Split(cfg.Shell, " ")
+	shell := slice[0]
+	shellArgs := strings.Join(slice[1:], " ")
+
+	if shellArgs == "" || shellArgs == "null" {
 		switch runtime.GOOS {
 		case "windows":
-			cfgCmd.ShellArgs = "/C"
+			shellArgs = "/C"
 		case "linux", "darwin":
-			cfgCmd.ShellArgs = "-c"
+			shellArgs = "-c"
 		}
 	}
 
 	for _, v := range cfgCmd.Env {
 		os.Setenv(v.Name, v.Value)
 	}
+	for _, v := range cfg.GlobalEnv {
+		os.Setenv(v.Name, v.Value)
+	}
 
-	cmd := exec.Command(cfgCmd.Shell, cfgCmd.ShellArgs, cfgCmd.Command)
+	cmd := exec.Command(shell, shellArgs, cfgCmd.Command)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	if err := cmd.Run(); err != nil {
 		printErr(err.Error())
 	}
+
+	for _, cmd := range cfgCmd.Extra {
+		cmd := exec.Command(shell, shellArgs, cmd)
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			printErr(err.Error())
+		}
+	}
+
 }
 
 func initYaml() []byte {
 	y, _ := yaml.Marshal(GrowlYaml{
+		Shell:     "cmd /C",
+		GlobalEnv: []GrowlEnv{},
 		Commands: []GrowlCommand{
 			{
-				Name:        "hello",
-				Description: "Says hello world!",
-				Command:     "echo hello world, %1!",
+				Name:        "build",
+				Description: "Example build command!",
+				Command:     "growl cross",
+				Extra:       []string{},
+				Env:         []GrowlEnv{},
 			},
 		},
 	})
@@ -133,45 +141,85 @@ func initYaml() []byte {
 	return y
 }
 
+func crossCompile(c *cli.Context) error {
+	color.Green("Flags:")
+	blue := color.New(color.FgBlue)
+	blue.Print("- os ")
+	os.Setenv("GOOS", c.String("os"))
+	fmt.Println(c.String("os"))
+	blue.Print("- arch ")
+	os.Setenv("GOARCH", c.String("arch"))
+	fmt.Println(c.String("arch"))
+	ld := c.String("ldflags")
+	if c.Bool("static") {
+		ld += " -extldflags=-static"
+	}
+	if c.Bool("light") {
+		ld += " -w -s"
+	}
+	if c.Bool("noconsole") {
+		ld += " -H=windowsgui"
+	}
+	ld = strings.Trim(ld, " ")
+
+	blue.Print("- ldflags ")
+	fmt.Println(ld)
+	blue.Print("- cgo ")
+	fmt.Println(c.Bool("cgo"))
+	if c.Bool("cgo") {
+		os.Setenv("CGO_ENABLED", "1")
+	}
+	blue.Print("- out ")
+	out := c.String("out")
+	if out == "" {
+		out = "bin/" + os.Getenv("GOOS") + "-" + os.Getenv("GOARCH")
+	}
+	if os.Getenv("GOOS") == "windows" {
+		out += ".exe"
+	}
+	fmt.Println(out)
+	color.Green("Building...")
+	args := append([]string{
+		"build", "-ldflags=" + ld, "-o=" + out},
+		c.Args().Slice()...,
+	)
+	cmd := exec.Command("go", args...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
 	var cfg GrowlYaml
-	content, err := os.ReadFile("growl.yaml")
-	if err != nil {
-		fmt.Println("Growl.yaml not found. Generating it.")
-		content = initYaml()
-	}
-	yaml.Unmarshal(content, &cfg)
+
 	app := cli.App{
 		Name:                 "growl",
 		Usage:                "simple go cli tools",
 		EnableBashCompletion: true,
 		SkipFlagParsing:      true,
 		Action: func(c *cli.Context) error {
+			content, err := os.ReadFile("growl.yaml")
+			if err != nil {
+				printErr("Growl.yaml not found. Generate one with `growl init`.")
+			}
+			yaml.Unmarshal(content, &cfg)
 			if len(c.Args().Slice()) == 0 {
-				runGoCmd("run", c.Args().Slice(), cfg)
+				return exec.Command("go", "run .").Run()
 			} else {
-				runCommand(c.Args().Slice(), cfg)
+				runCommand(c.Args().Slice(), cfg, c)
 			}
 			return nil
 		},
 		Commands: []*cli.Command{
 			{
 				SkipFlagParsing: true,
-				Name:            "run",
-				Action: func(c *cli.Context) error {
-					runGoCmd("run", c.Args().Slice(), cfg)
-					return nil
-				},
-				Usage: "Run project (go run .)",
-				Aliases: []string{
-					"r",
-				},
-			},
-			{
-				SkipFlagParsing: true,
 				Name:            "init",
 				Action: func(c *cli.Context) error {
-					_, err = os.Stat("growl.yaml")
+
+					_, err := os.Stat("growl.yaml")
 					if errors.Is(err, os.ErrNotExist) {
 						initYaml()
 						return nil
@@ -215,12 +263,16 @@ func main() {
 				},
 			},
 			{
-				Name:      "cross",
-				UsageText: "growl cross --os [os] --arch [arch] --ldflags \"[ldflags]\" [--static] [--light] [--cgo] \ngrowl cross -o [os] -a [arch] -ld \"[ldflags]\" [-s] [-l] [-c]\nYou can use growl cross list to list available OS and CPU architectures",
+				Name: "cross",
+				UsageText: "growl cross -os [os] -arch [arch] -ldflags \"[ldflags]\" [-static] [-light] [-cgo] -out [output] -noconsole\n" +
+					"growl cross -os [os] -a [arch] -ld \"[ldflags]\" [-s] [-l] [-c] -o [output] -nc\n" +
+					"Default output is bin/$GOOS-$GOARCH\n" +
+					"--noconsole (or -nc) disables the console in windows to use only the GUI (adds -H=windowsgui ldflag). \n" +
+					"You can use growl cross list to list available OS and CPU architectures",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "os",
-						Aliases: []string{"o"},
+						Aliases: []string{},
 						Value:   runtime.GOOS,
 					},
 					&cli.StringFlag{
@@ -233,9 +285,19 @@ func main() {
 						Aliases: []string{"ld"},
 						Value:   "",
 					},
+					&cli.StringFlag{
+						Name:    "out",
+						Aliases: []string{"o"},
+						Value:   "",
+					},
 					&cli.BoolFlag{
 						Name:    "static",
 						Aliases: []string{"s"},
+						Value:   false,
+					},
+					&cli.BoolFlag{
+						Name:    "noconsole",
+						Aliases: []string{"nc"},
 						Value:   false,
 					},
 					&cli.BoolFlag{
@@ -267,50 +329,11 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					color.Green("Flags:")
-					red := color.New(color.FgBlue)
-					red.Print("- os ")
-					os.Setenv("GOOS", c.String("os"))
-					fmt.Println(c.String("os"))
-					red.Print("- arch ")
-					os.Setenv("GOARCH", c.String("arch"))
-					fmt.Println(c.String("arch"))
-					ld := c.String("ldflags")
-					if c.Bool("static") {
-						ld += " -extldflags=-static"
-						os.Setenv("CGO_ENABLED", "1")
-					}
-					if c.Bool("light") {
-						ld += " -w -s"
-						os.Setenv("CGO_ENABLED", "1")
-					}
-					red.Print("- ldflags ")
-					fmt.Println(ld)
-					color.Green("Building...")
-					args := append([]string{"build", "-ldflags=" + ld}, c.Args().Slice()...)
-					cmd := exec.Command("go", args...)
-					cmd.Stderr = os.Stderr
-					cmd.Stdout = os.Stdout
-					if err := cmd.Run(); err != nil {
-						return err
-					}
-					return nil
+					return crossCompile(c)
 				},
-				Usage: "Build to target OS and arch. (growl cross --os=linux --arch=amd64)",
+				Usage: "Build to target OS and arch. (build normally if not specified) (growl help cross for more info)",
 				Aliases: []string{
 					"c",
-				},
-			},
-			{
-				SkipFlagParsing: true,
-				Name:            "build",
-				Action: func(c *cli.Context) error {
-					runGoCmd("build", c.Args().Slice(), cfg)
-					return nil
-				},
-				Usage: "Build project (go build .)",
-				Aliases: []string{
-					"b",
 				},
 			},
 		},

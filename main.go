@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -194,44 +193,26 @@ func crossCompile(c *cli.Context) error {
 
 func main() {
 	var cfg GrowlYaml
-
+	content, err := os.ReadFile("growl.yaml")
+	if err != nil {
+		printErr("Growl.yaml not found. Generating one...")
+		content = initYaml()
+	}
+	yaml.Unmarshal(content, &cfg)
 	app := cli.App{
 		Name:                 "growl",
 		Usage:                "simple go cli tools",
 		EnableBashCompletion: true,
 		SkipFlagParsing:      true,
 		Action: func(c *cli.Context) error {
-			content, err := os.ReadFile("growl.yaml")
-			if err != nil {
-				printErr("Growl.yaml not found. Generate one with `growl init`.")
-			}
-			yaml.Unmarshal(content, &cfg)
 			if len(c.Args().Slice()) == 0 {
-				return exec.Command("go", "run .").Run()
+				return exec.Command("go", "run", ".").Run()
 			} else {
 				runCommand(c.Args().Slice(), cfg, c)
 			}
 			return nil
 		},
 		Commands: []*cli.Command{
-			{
-				SkipFlagParsing: true,
-				Name:            "init",
-				Action: func(c *cli.Context) error {
-
-					_, err := os.Stat("growl.yaml")
-					if errors.Is(err, os.ErrNotExist) {
-						initYaml()
-						return nil
-					}
-					if err == nil {
-						return errors.New("growl.yaml already exists")
-					}
-					return nil
-				},
-				Usage:   "Generates growl.yaml",
-				Aliases: []string{},
-			},
 			{
 				Name: "list",
 				Action: func(c *cli.Context) error {

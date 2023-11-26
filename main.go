@@ -5,9 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/go-andiamo/splitter"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
 )
@@ -100,6 +102,7 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		os.Setenv(v.Name, v.Value)
 	}
 
+	fmt.Println(shell, shellArgs, cfgCmd.Command)
 	cmd := exec.Command(shell, shellArgs, cfgCmd.Command)
 
 	cmd.Stdout = os.Stdout
@@ -108,14 +111,24 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 	if err := cmd.Run(); err != nil {
 		printErr(err.Error())
 	}
-	fmt.Println(shell, shellArgs, cfgCmd.Command)
 	for _, cmd := range cfgCmd.Extra {
 		if len(args) > 1 {
 			for i := range args[:1] {
 				cmd = strings.ReplaceAll(cmd, "%"+fmt.Sprint(i+1), args[i+1])
+				cmd = strings.ReplaceAll(cmd, "\\", "")
 			}
 		}
-		cmd := exec.Command(shell, shellArgs, cmd)
+		sp, _ := splitter.NewSplitter(' ', splitter.DoubleQuotes)
+		args, _ := sp.Split(cmd)
+		for i := range args {
+			if strings.HasPrefix(args[i], "\"") && strings.HasSuffix(args[i], "\"") {
+				args[i], _ = strconv.Unquote(args[i])
+			}
+		}
+		args = append([]string{shellArgs}, args...)
+
+		cmd := exec.Command(shell, args...)
+		fmt.Printf("%q\n", cmd.Args)
 
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -123,7 +136,6 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		if err := cmd.Run(); err != nil {
 			printErr(err.Error())
 		}
-		fmt.Println(shell, shellArgs, cmd)
 	}
 }
 

@@ -100,6 +100,10 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 				if err != nil {
 					printErr("Invalid argument: " + arg + "\nSyntax: %number")
 				}
+				if len(strings.Split(args[n], " ")) > 1 {
+					cmdArgs[i] = `"` + args[n] + `"`
+					continue
+				}
 				cmdArgs[i] = args[n]
 			}
 		}
@@ -112,10 +116,9 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		runCmd.Stderr = os.Stderr
 		runCmd.Stdout = os.Stdout
 		runCmd.Stdin = os.Stdin
-		println(runCmd.String())
-		// if err := runCmd.Run(); err != nil {
-		// 	printErr(err.Error())
-		// }
+		if err := runCmd.Run(); err != nil {
+			printErr(err.Error())
+		}
 	}
 }
 

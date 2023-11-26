@@ -2,3 +2,8 @@ commands:
 - name: b
   description: build growl
   command: growl cross -os %1 -s -l
+- name: git
+  description: git add and commit
+  command: git add -A
+  extra:
+    - git commit -m "%1"

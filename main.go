@@ -108,14 +108,13 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 	if err := cmd.Run(); err != nil {
 		printErr(err.Error())
 	}
-
+	fmt.Println(shell, shellArgs, cfgCmd.Command)
 	for _, cmd := range cfgCmd.Extra {
 		if len(args) > 1 {
 			for i := range args[:1] {
 				cmd = strings.ReplaceAll(cmd, "%"+fmt.Sprint(i+1), args[i+1])
 			}
 		}
-
 		cmd := exec.Command(shell, shellArgs, cmd)
 
 		cmd.Stdout = os.Stdout
@@ -124,8 +123,8 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		if err := cmd.Run(); err != nil {
 			printErr(err.Error())
 		}
+		fmt.Println(shell, shellArgs, cmd)
 	}
-
 }
 
 func initYaml() []byte {

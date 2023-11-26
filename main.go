@@ -128,7 +128,6 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		args = append([]string{shellArgs}, args...)
 
 		cmd := exec.Command(shell, args...)
-		fmt.Printf("%q\n", cmd.Args)
 
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

@@ -112,9 +112,10 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		runCmd.Stderr = os.Stderr
 		runCmd.Stdout = os.Stdout
 		runCmd.Stdin = os.Stdin
-		if err := runCmd.Run(); err != nil {
-			printErr(err.Error())
-		}
+		println(runCmd.String())
+		// if err := runCmd.Run(); err != nil {
+		// 	printErr(err.Error())
+		// }
 	}
 }
 

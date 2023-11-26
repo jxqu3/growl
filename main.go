@@ -192,11 +192,18 @@ func crossCompile(c *cli.Context) error {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "init" {
+		// check if file exists
+		if _, err := os.Stat("growl.yaml"); err == nil {
+			printErr("Growl.yaml already exists")
+		}
+		initYaml()
+		return
+	}
 	var cfg GrowlYaml
 	content, err := os.ReadFile("growl.yaml")
 	if err != nil {
-		printErr("Growl.yaml not found. Generating one...")
-		content = initYaml()
+		printErr("Growl.yaml not found. Generate one with growl init")
 	}
 	yaml.Unmarshal(content, &cfg)
 	app := cli.App{
@@ -206,7 +213,13 @@ func main() {
 		SkipFlagParsing:      true,
 		Action: func(c *cli.Context) error {
 			if len(c.Args().Slice()) == 0 {
-				return exec.Command("go", "run", ".").Run()
+				cmd := exec.Command("go", "run", ".")
+				cmd.Stderr = os.Stderr
+				cmd.Stdout = os.Stdout
+				cmd.Stdin = os.Stdin
+				if err := cmd.Run(); err != nil {
+					printErr(err.Error())
+				}
 			} else {
 				runCommand(c.Args().Slice(), cfg, c)
 			}

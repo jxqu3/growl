@@ -59,79 +59,60 @@ func printList(commands []GrowlCommand) {
 }
 
 func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
-	idx := IndexFunc(cfg.Commands, func(c GrowlCommand) bool { return c.Name == args[0] })
-	if idx == -1 {
+	var command GrowlCommand
+	for _, cmd := range cfg.Commands {
+		if cmd.Name == args[0] {
+			command = cmd
+			break
+		}
+	}
+	if command.Name == "" {
 		printList(cfg.Commands)
-		printErr(fmt.Sprintf("'%s': Command not found!", args[0]))
+		printErr("Command not found")
 	}
 
-	cfgCmd := cfg.Commands[idx]
-
-	if len(args) > 1 {
-		for i := range args[:1] {
-			cfgCmd.Command = strings.ReplaceAll(cfgCmd.Command, "%"+fmt.Sprint(i+1), args[i+1])
-		}
+	for _, env := range cfg.GlobalEnv {
+		os.Setenv(env.Name, env.Value)
 	}
-
-	if cfg.Shell == "" {
-		switch runtime.GOOS {
-		case "windows":
-			cfg.Shell = "cmd /C"
-		case "linux", "darwin":
-			cfg.Shell = "bash -c"
-		}
+	for _, env := range command.Env {
+		os.Setenv(env.Name, env.Value)
 	}
+	cmds := append([]string{command.Command}, command.Extra...)
 
-	slice := strings.Split(cfg.Shell, " ")
-	shell := slice[0]
-	shellArgs := strings.Join(slice[1:], " ")
+	for _, cmd := range cmds {
 
-	if shellArgs == "" || shellArgs == "null" {
-		switch runtime.GOOS {
-		case "windows":
-			shellArgs = "/C"
-		case "linux", "darwin":
-			shellArgs = "-c"
-		}
-	}
-
-	for _, v := range cfgCmd.Env {
-		os.Setenv(v.Name, v.Value)
-	}
-	for _, v := range cfg.GlobalEnv {
-		os.Setenv(v.Name, v.Value)
-	}
-
-	cmd := exec.Command(shell, shellArgs, cfgCmd.Command)
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		printErr(err.Error())
-	}
-	for _, cmd := range cfgCmd.Extra {
-		if len(args) > 1 {
-			for i := range args[:1] {
-				cmd = strings.ReplaceAll(cmd, "%"+fmt.Sprint(i+1), args[i+1])
-				cmd = strings.ReplaceAll(cmd, "\\", "")
+		shell := cfg.Shell
+		if shell == "" {
+			switch runtime.GOOS {
+			case "windows":
+				shell = "cmd /C"
+			case "linux", "darwin":
+				shell = "bash -c"
 			}
 		}
+
 		sp, _ := splitter.NewSplitter(' ', splitter.DoubleQuotes)
-		args, _ := sp.Split(cmd)
-		for i := range args {
-			if strings.HasPrefix(args[i], "\"") && strings.HasSuffix(args[i], "\"") {
-				args[i], _ = strconv.Unquote(args[i])
+		cmdArgs, _ := sp.Split(cmd)
+
+		for i, arg := range cmdArgs {
+			if strings.HasPrefix(arg, "%") {
+				n, err := strconv.Atoi(arg[1:])
+				if err != nil {
+					printErr("Invalid argument: " + arg + "\nSyntax: %number")
+				}
+				cmdArgs[i] = args[n]
 			}
 		}
-		args = append([]string{shellArgs}, args...)
 
-		cmd := exec.Command(shell, args...)
+		shellArgs, _ := sp.Split(shell)
 
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmdArgs = append(shellArgs[1:], cmdArgs...)
 
-		if err := cmd.Run(); err != nil {
+		runCmd := exec.Command(shellArgs[0], cmdArgs...)
+		runCmd.Stderr = os.Stderr
+		runCmd.Stdout = os.Stdout
+		runCmd.Stdin = os.Stdin
+		if err := runCmd.Run(); err != nil {
 			printErr(err.Error())
 		}
 	}

@@ -102,7 +102,6 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		os.Setenv(v.Name, v.Value)
 	}
 
-	fmt.Println(shell, shellArgs, cfgCmd.Command)
 	cmd := exec.Command(shell, shellArgs, cfgCmd.Command)
 
 	cmd.Stdout = os.Stdout

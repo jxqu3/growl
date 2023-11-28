@@ -131,8 +131,17 @@ func initYaml() []byte {
 				Name:        "build",
 				Description: "Example build command!",
 				Command:     "growl cross",
-				Extra:       []string{},
-				Env:         []GrowlEnv{},
+			},
+			{
+				Name:        "git",
+				Description: `Example git commit command: growl git "message"`,
+				Command:     "git add -A",
+				Extra:       []string{"git commit -m %1"},
+			},
+			{
+				Name:        "gp",
+				Description: `Example git push command: growl gp <master/main...>`,
+				Command:     "git push origin %1",
 			},
 		},
 	})

@@ -5,11 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/fatih/color"
-	"github.com/go-andiamo/splitter"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
 )
@@ -77,45 +76,31 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 	for _, env := range command.Env {
 		os.Setenv(env.Name, env.Value)
 	}
+
+	shell := cfg.Shell
+	if shell == "" {
+		switch runtime.GOOS {
+		case "windows":
+			shell = "cmd /C"
+		case "linux", "darwin":
+			shell = "bash -c"
+		}
+	}
+
+	shellArgs := strings.Split(shell, " ")
+
 	cmds := append([]string{command.Command}, command.Extra...)
-
 	for _, cmd := range cmds {
-
-		shell := cfg.Shell
-		if shell == "" {
-			switch runtime.GOOS {
-			case "windows":
-				shell = "cmd /C"
-			case "linux", "darwin":
-				shell = "bash -c"
-			}
+		for i, arg := range args[1:] {
+			cmd = strings.ReplaceAll(cmd, fmt.Sprintf("%%%d", i+1), arg)
 		}
 
-		sp, _ := splitter.NewSplitter(' ', splitter.DoubleQuotes)
-		cmdArgs, _ := sp.Split(cmd)
-
-		for i, arg := range cmdArgs {
-			if strings.HasPrefix(arg, "%") {
-				n, err := strconv.Atoi(arg[1:])
-				if err != nil {
-					printErr("Invalid argument: " + arg + "\nSyntax: %number")
-				}
-				if len(strings.Split(args[n], " ")) > 1 {
-					cmdArgs[i] = `"` + args[n] + `"`
-					continue
-				}
-				cmdArgs[i] = args[n]
-			}
-		}
-
-		shellArgs, _ := sp.Split(shell)
-
-		cmdArgs = append(shellArgs[1:], cmdArgs...)
-
-		runCmd := exec.Command(shellArgs[0], cmdArgs...)
+		runCmd := exec.Command(shellArgs[0])
+		runCmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: shellArgs[1] + fmt.Sprintf(`"%s"`, cmd)}
 		runCmd.Stderr = os.Stderr
 		runCmd.Stdout = os.Stdout
 		runCmd.Stdin = os.Stdin
+
 		if err := runCmd.Run(); err != nil {
 			printErr(err.Error())
 		}

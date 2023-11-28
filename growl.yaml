@@ -1,15 +1,14 @@
 commands:
 - name: b
   description: build growl
-  command: growl cross -os %1 -s -l
+  command: growl cross -os "%1" -s -l
 - name: git
   description: git add and commit
   command: git add -A
   extra:
     - git commit -m %1
-    - git push origin master
 - name: argstest
   description: test args
   command: echo %1
   extra:
-    - echo %2
+    - echo "%2"

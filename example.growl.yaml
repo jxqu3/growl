@@ -1,4 +1,4 @@
-shell: cmd /C # > optional, default is cmd /C in Windows, bash -c in Linux. Set this to the shell you want to use. (with the prefix to make it work too)
+shell: cmd /C # > optional, default is cmd /C in Windows, bash -c in Linux/Darwin. Set this to the shell you want to use. (with the prefix to make it work too)
 globalenv: # optional, set global (for all commands) environment variables like this.
   - name: TESTGLOBAL
     value: global var test
@@ -15,6 +15,7 @@ commands:
     extra: # optional, set extra commands (ran after the main one) for a command like this.
       - echo hello, extra %TEST%
       - echo this is a nicer way to run multiple commands than using "&&"
+      - echo you can use %1 args too.
     env: # optional, set environment variables for a command like this.
       - name: TEST
         value: test

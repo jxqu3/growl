@@ -7,6 +7,9 @@ commands:
   command: git add -A
   extra:
     - git commit -m %1
+- name: gp
+  description: git push
+  command: git push orgin %1
 - name: argstest
   description: test args
   command: echo %1

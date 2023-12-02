@@ -57,6 +57,15 @@ func printList(commands []GrowlCommand) {
 	}
 }
 
+func isNumber(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 	var command GrowlCommand
 	for _, cmd := range cfg.Commands {
@@ -93,6 +102,16 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 	for _, cmd := range cmds {
 		for i, arg := range args[1:] {
 			cmd = strings.ReplaceAll(cmd, fmt.Sprintf("%%%d", i+1), arg)
+		}
+
+		missing := []string{}
+		for _, word := range strings.Split(cmd, " ") {
+			if strings.HasPrefix(word, "%") && isNumber(word[1:]) {
+				missing = append(missing, word)
+			}
+		}
+		if len(missing) > 0 {
+			printErr("Missing argument(s):", strings.Join(missing, ", "))
 		}
 
 		runCmd := exec.Command(shellArgs[0])

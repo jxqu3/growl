@@ -12,6 +12,6 @@ commands:
   command: git push origin %1
 - name: argstest
   description: test args
-  command: echo %1
+  command: echo %1 %2 %3 %4
   extra:
     - echo "%2"

@@ -62,42 +62,14 @@ func runCommand(args []string, cfg GrowlYaml, c *cli.Context) {
 		}
 
 		runCmd := exec.Command(shellArgs[0])
-		runCmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: shellArgs[1] + fmt.Sprintf(`"%s"`, cmd)}
+		runCmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: shellArgs[1] + fmt.Sprintf(` "%s"`, cmd)}
 		runCmd.Stderr = os.Stderr
 		runCmd.Stdout = os.Stdout
 		runCmd.Stdin = os.Stdin
-
 		if err := runCmd.Run(); err != nil {
 			printErr(err.Error())
 		}
 	}
-}
-
-func initYaml() []byte {
-	y, _ := yaml.Marshal(GrowlYaml{
-		Shell:     "cmd /C",
-		GlobalEnv: []GrowlEnv{},
-		Commands: []GrowlCommand{
-			{
-				Name:        "build",
-				Description: "Example build command!",
-				Command:     "growl cross",
-			},
-			{
-				Name:        "git",
-				Description: `Example git commit command: growl git "message"`,
-				Command:     "git add -A",
-				Extra:       []string{"git commit -m %1"},
-			},
-			{
-				Name:        "gp",
-				Description: `Example git push command: growl gp <master/main...>`,
-				Command:     "git push origin %1",
-			},
-		},
-	})
-	os.WriteFile("growl.yaml", y, 0644)
-	return y
 }
 
 func crossCompile(c *cli.Context) error {

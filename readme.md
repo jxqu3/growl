@@ -19,7 +19,7 @@ globalenv: # optional, set global (for all commands) environment variables like 
 commands:
   - name: b
     description: "build the app to a given os"
-    command: growl cross -os %1 # add args with %1, %2, etc.
+    command: growl cross -os %1 # add args with %1, %2, etc. Remember to add quotes to them if the command requires it (most do)
     
   - name: test
     description: "show environment variables"

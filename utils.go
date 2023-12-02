@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"gopkg.in/yaml.v2"
 )
 
 type GrowlEnv struct {
@@ -59,4 +60,25 @@ func printList(commands []GrowlCommand) {
 		blue.Print("    command ")
 		fmt.Println(strings.Replace(c.Command, "%", blue.Sprint("%"), 1))
 	}
+}
+
+func initYaml() []byte {
+	y, _ := yaml.Marshal(GrowlYaml{
+		GlobalEnv: []GrowlEnv{},
+		Commands: []GrowlCommand{
+			{
+				Name:        "build",
+				Description: "Example build command!",
+				Command:     "growl cross",
+			},
+			{
+				Name:        "git",
+				Description: `Example git commit command: growl git "message"`,
+				Command:     "git add -A",
+				Extra:       []string{`git commit -m "%1"`, `git push origin master`},
+			},
+		},
+	})
+	os.WriteFile("growl.yaml", y, 0644)
+	return y
 }

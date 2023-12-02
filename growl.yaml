@@ -3,15 +3,18 @@ commands:
   description: build growl
   command: growl cross -os "%1" -s -l
 - name: git
-  description: git add and commit
+  description: 'Example git commit command: growl git "message"'
   command: git add -A
+  env: []
   extra:
-    - git commit -m %1
+  - git commit -m "%1"
+  - git push origin master
 - name: gp
   description: git push
   command: git push origin %1
 - name: argstest
   description: test args
-  command: echo %1 %2 %3 %4
+  command: echo test
   extra:
-    - echo "%2"
+    - echo %1
+    - echo xd
